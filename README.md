@@ -22,7 +22,7 @@ This plugin supports OsCommerce version v2.2 RC2.
  4. On the confirmation page, review your changes then click the “Confirm button”.
 
  ## Documentation
-[OsCommerce documentation]()
+[OsCommerce documentation](https://github.com/asiapay-lib/asiapay-OsCommerce/blob/master/PayDollar%20PayGate%20Integration%20Guide%20_osCommerce_%20v2.1.pdf)
 
 ## Support
 If you have a feature request, or spotted a bug or a technical problem, create a GitHub issue. For other questions, contact our [Customer Service](https://www.paydollar.com/en/contactus.html).
