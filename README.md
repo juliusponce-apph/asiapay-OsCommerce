@@ -1,6 +1,9 @@
 # PayDollar/SaimPay/PesoPay Payment plugin for OsCommerce
 Use PayDollar/SaimPay/PesoPays plugin for OsCommerce to offer ALL payments option.
 
+## Download
+Please download the latest plugin version. [Download](https://github.com/asiapay-lib/asiapay-OsCommerce/releases/latest)
+
 ## Integration
 The plugin integrates OsCommerce with PayDollar/SaimPay/PesoPay payment gateway with All payment method.
 
