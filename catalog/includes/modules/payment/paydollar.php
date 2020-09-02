@@ -147,10 +147,13 @@ class paydollar{
                                   <input type="hidden" name="successUrl" value="'. tep_href_link(FILENAME_CHECKOUT_SUCCESS, 'osCsid='.tep_session_id(), 'SSL', false) .'"/>
                                   <input type="hidden" name="failUrl" value="' . tep_href_link(FILENAME_CHECKOUT_PAYMENT, 'payment_status=failed', 'SSL') . '"/>
                                   <input type="hidden" name="cancelUrl" value="'. tep_href_link(FILENAME_CHECKOUT_PAYMENT, 'payment_status=canceled', 'SSL') .'"/>
-                                  <input type="hidden" name="payType" value="N">
                                   <input type="hidden" name="actionUrl" value="'.MODULE_PAYMENT_PAYDOLLAR_HANDLER.'">
-                                  <input type="hidden" name="lang" value="'. $this->getLanguageCode() .'">';
-
+                                  <input type="hidden" name="lang" value="'. $this->getLanguageCode() .'">
+                                  <input type="hidden" name="secureHashSecret" value="'. MODULE_PAYMENT_PAYDOLLAR_SHSKEY .'"/>
+                                  <input type="hidden" name="payType" value="'.$this->getPaymentType() .'"/>
+                                  <input type="hidden" name="threeDSTransType" value="'.$this->getTransactionType() .'"/>
+                                  <input type="hidden" name="threeDSChallengePreference" value="'.$this->getChallengePref() .'"/>';//<input type="hidden" name="payType" value="N">
+                                  
   return $process_button_string;
 
   }
@@ -164,6 +167,7 @@ class paydollar{
     ?78??EUR
     ?26??GBP
     ?24??CAD
+    ?08??PHP
   */
   function getCurrencyCode(){
 
@@ -188,20 +192,86 @@ class paydollar{
                     break;
             case 'Only CAD':  $cur = '124';
                     break;
+            case 'Only PHP':  $cur = '608';//added Julius 010219
+                    break;
             default:  $cur = '344';
 
     }
 
     return $cur;
   }
+  /*
+    The payment type of the payment page i.e.
+    ï¿½Nï¿½ ï¿½ N-Normal Payment (Sales)
+    ï¿½Hï¿½ ï¿½ H-Hold Payment (Authorize only)
+  */
+  function getPaymentType(){
+    switch (MODULE_PAYMENT_PAYDOLLAR_PAYTYPE) {
+         case 'N-Normal Payment (Sales)':  $paytype = 'N';
+                 break;
+         case 'H-Hold Payment (Authorize only)':  $paytype = 'H';
+                break;
+         default:  $paytype = 'N';
+    
+    }
+    return $paytype;
+  }
 
   /*
+    The transaction type of the payment page i.e.
+  */
+  function getTransactionType(){
+    switch (MODULE_PAYMENT_PAYDOLLAR_TRANSTYPE) {
+         case 'Goods/ Service Purchase':  $type = '01';
+                 break;
+         case 'Check Acceptance':  $type = '03';
+                break;
+         case 'Account Funding':  $type = '10';
+                break;
+         case 'Quasi-Cash Transaction':  $type = '11';
+                break;
+         case 'Prepaid Activation and Load':  $type = '28';
+                break;
+         default:  $type = '01';
+    
+    }
+    return $type;
+  }
+
+  /*
+    The Challenge Pref of the payment page i.e.
+  */
+  function getChallengePref(){
+    switch (MODULE_PAYMENT_PAYDOLLAR_CHALLENGEPREF) {
+         case '01':  $type = '01';
+                 break;
+         case '02':  $type = '02';
+                break;
+         case '03':  $type = '03';
+                break;
+         case '04':  $type = '04';
+                break;
+         case '05':  $type = '05';
+                break;
+         case '06':  $type = '06';
+                break;
+         case '07':  $type = '07';
+                break;
+         case '08':  $type = '08';
+                break;
+         case '09':  $type = '09';
+                break;
+         default:  $type = '01';
+    }
+    return $type;
+  }
+  /*
     The language of the payment page i.e.
-    ¡§C??Traditional Chinese
-    ¡§E??English
-    ¡§X??Simplified Chinese
-    ¡§K??Korean
-    ¡§J??Japanese
+    ï¿½ï¿½C??Traditional Chinese
+    ï¿½ï¿½E??English
+    ï¿½ï¿½X??Simplified Chinese
+    ï¿½ï¿½K??Korean
+    ï¿½ï¿½J??Japanese
   */
   function getLanguageCode(){
   	   global $languages_id;
@@ -302,7 +372,7 @@ class paydollar{
    //global $db;
     tep_db_query("insert into " . TABLE_CONFIGURATION . " (configuration_title, configuration_key, configuration_value, configuration_description, configuration_group_id, sort_order, set_function, date_added) values ('Enable PayDollar Module', 'MODULE_PAYMENT_PAYDOLLAR_STATUS', 'True', 'Do you want to accept Paydollar payments?', '6', '0', 'tep_cfg_select_option(array(\'True\', \'False\'), ', now())");
     tep_db_query("insert into " . TABLE_CONFIGURATION . " (configuration_title, configuration_key, configuration_value, configuration_description, configuration_group_id, sort_order, date_added) values ('PayDollar ID', 'MODULE_PAYMENT_PAYDOLLAR_ID', '1', 'The merchant id used for the Paydollar service', '6', '0', now())");
-    tep_db_query("insert into " . TABLE_CONFIGURATION . " (configuration_title, configuration_key, configuration_value, configuration_description, configuration_group_id, sort_order, set_function, date_added) values ('Transaction Currency', 'MODULE_PAYMENT_PAYDOLLAR_CURRENCY', 'Only HKD', 'Choose the currency/currencies you want to accept', '6', '0', 'tep_cfg_select_option(array(\'Only HKD\',\'Only USD\',\'Only SGD\',\'Only CNY\',\'Only JPY\',\'Only TWD\',\'Only AUD\',\'Only EUR\',\'Only GBP\',\'Only CAD\'), ', now())");
+    tep_db_query("insert into " . TABLE_CONFIGURATION . " (configuration_title, configuration_key, configuration_value, configuration_description, configuration_group_id, sort_order, set_function, date_added) values ('Transaction Currency', 'MODULE_PAYMENT_PAYDOLLAR_CURRENCY', 'Only HKD', 'Choose the currency/currencies you want to accept', '6', '0', 'tep_cfg_select_option(array(\'Only HKD\',\'Only USD\',\'Only SGD\',\'Only CNY\',\'Only JPY\',\'Only TWD\',\'Only AUD\',\'Only EUR\',\'Only GBP\',\'Only CAD\',\'Only PHP\'), ', now())");
     tep_db_query("insert into " . TABLE_CONFIGURATION . " (configuration_title, configuration_key, configuration_value, configuration_description, configuration_group_id, sort_order, set_function, date_added) values ('Language', 'MODULE_PAYMENT_PAYDOLLAR_LANGUAGE', 'English', 'Choose the language of payment page<br><br>(Select \"Customer Choice\" if you like to display the payment page with the language same as customer selected language in your store. Enter the language codes defined in your store below \"Customer Choice\")', '6', '0', 'tep_cfg_select_option(array(\'Traditional Chinese\',\'English\',\'Simplified Chinese\',\'Korean\',\'Japanese\', \'Customer Choice\'), ', now())");
     tep_db_query("insert into " . TABLE_CONFIGURATION . " (configuration_title, configuration_key, configuration_value, configuration_description, configuration_group_id, sort_order, set_function, use_function, date_added) values ('Set Paydollar Pending Order Status', 'MODULE_PAYMENT_PAYDOLLAR_ORDER_STATUS_ID', '1', 'Set the status of pending orders made with this payment module to this value', '6', '0', 'tep_cfg_pull_down_order_statuses(', 'tep_get_order_status_name', now())");
     tep_db_query("insert into " . TABLE_CONFIGURATION . " (configuration_title, configuration_key, configuration_value, configuration_description, configuration_group_id, sort_order, set_function, use_function, date_added) values ('Set Paydollar Acknowledged Order Status', 'MODULE_PAYMENT_PAYDOLLAR_SUCCESS_ORDER_STATUS_ID', '2', 'Set the status of successful orders made with this payment module to this value', '6', '0', 'tep_cfg_pull_down_order_statuses(', 'tep_get_order_status_name', now())");
@@ -314,6 +384,21 @@ class paydollar{
     tep_db_query("insert into " . TABLE_CONFIGURATION . " (configuration_title, configuration_key, configuration_value, configuration_description, configuration_group_id, sort_order, date_added) values ('Japanese', 'MODULE_PAYMENT_PAYDOLLAR_JAPANESE_CODE', '', 'The language code for japanese', '6', '0', now())");
     tep_db_query("insert into " . TABLE_CONFIGURATION . " (configuration_title, configuration_key, configuration_value, configuration_description, configuration_group_id, sort_order, date_added) values ('Paydollar server', 'MODULE_PAYMENT_PAYDOLLAR_HANDLER', 'https://test.paydollar.com/b2c2/eng/payment/payForm.jsp', 'Type the server that will handle the transaction. The default is <code>https://www.paydollar.com/b2c2/eng/payment/payForm.jsp</code>', '6', '0', now())");
       tep_db_query("insert into " . TABLE_CONFIGURATION . " (configuration_title, configuration_key, configuration_value, configuration_description, configuration_group_id, sort_order, date_added) values ('Sort order of display.', 'MODULE_PAYMENT_PAYDOLLAR_SORT_ORDER', '0', 'Sort order of display. Lowest is displayed first.', '6', '0' , now())");
+
+        //julius 2019-01-02
+      //secure hash secret key
+      tep_db_query("insert into " . TABLE_CONFIGURATION . " (configuration_title, configuration_key, configuration_value, configuration_description, configuration_group_id, sort_order, date_added) values ('Secure Hash Secret Key', 'MODULE_PAYMENT_PAYDOLLAR_SHSKEY', '', 'The Secure Hash Secret â€“ Assigned by Paydollar to merchant', '6', '0', now())");
+
+
+      tep_db_query("insert into " . TABLE_CONFIGURATION . " (configuration_title, configuration_key, configuration_value, configuration_description, configuration_group_id, sort_order, set_function, date_added) values ('Payment Type', 'MODULE_PAYMENT_PAYDOLLAR_PAYTYPE', 'N-Normal Payment (Sales)', 'Please choose the payment Type used for the Paydollar service', '6', '0' , 'tep_cfg_select_option(array(\'N-Normal Payment (Sales)\',\'H-Hold Payment (Authorize only)\'), ', now())");
+
+
+      //3DS2.0
+      tep_db_query("insert into " . TABLE_CONFIGURATION . " (configuration_title, configuration_key, configuration_value, configuration_description, configuration_group_id, sort_order, set_function, date_added) values ('Transaction Type', 'MODULE_PAYMENT_PAYDOLLAR_TRANSTYPE', 'Goods/ Service Purchase', 'Please choose the Transaction Type used for the Paydollar service', '6', '0' , 'tep_cfg_select_option(array(\'Goods/ Service Purchase\',\'Check Acceptance\',\'Account Funding\',\'Quasi-Cash Transaction\',\'Prepaid Activation and Load\'), ', now())");
+
+      tep_db_query("insert into " . TABLE_CONFIGURATION . " (configuration_title, configuration_key, configuration_value, configuration_description, configuration_group_id, sort_order, set_function, date_added) values ('Challenge Type', 'MODULE_PAYMENT_PAYDOLLAR_CHALLENGEPREF', '01', 'Please choose the Challenge preference used for the Paydollar service. * If \'No challenge requested\' options are selected, the chargeback liability shift to merchant.', '6', '0' , 'tep_cfg_select_option(array(\'01\',\'02\',\'03\',\'04\',\'05\',\'06\',\'07\',\'08\',\'09\',), ', now())");
+
+      // \'No preference\',\'No challenge requested *\',\'Challenge requested (Merchant preference)\',\'Challenge requested (Mandate)\',\'No challenge requested (transactional risk analysis is already performed) *\',\'No challenge requested (strong consumer authentication is already performed) *\',\'No challenge requested (utilise whitelist exemption if no challenge required) *\',\'Challenge requested (whitelist prompt requested if challenge required)\'
   }
   /**
    * Remove the module and all its settings
@@ -330,7 +415,7 @@ class paydollar{
    * @return array
     */
   function keys() {
-           return array('MODULE_PAYMENT_PAYDOLLAR_STATUS', 'MODULE_PAYMENT_PAYDOLLAR_ID', 'MODULE_PAYMENT_PAYDOLLAR_ORDER_STATUS_ID', 'MODULE_PAYMENT_PAYDOLLAR_SUCCESS_ORDER_STATUS_ID', 'MODULE_PAYMENT_PAYDOLLAR_FAIL_ORDER_STATUS_ID', 'MODULE_PAYMENT_PAYDOLLAR_CURRENCY','MODULE_PAYMENT_PAYDOLLAR_LANGUAGE', 'MODULE_PAYMENT_PAYDOLLAR_TRADITIONAL_CHINESE_CODE', 'MODULE_PAYMENT_PAYDOLLAR_ENGLISH_CODE', 'MODULE_PAYMENT_PAYDOLLAR_SIMPLIFIED_CHINESE_CODE', 'MODULE_PAYMENT_PAYDOLLAR_KOREAN_CODE', 'MODULE_PAYMENT_PAYDOLLAR_JAPANESE_CODE', 'MODULE_PAYMENT_PAYDOLLAR_HANDLER','MODULE_PAYMENT_PAYDOLLAR_SORT_ORDER');
+           return array('MODULE_PAYMENT_PAYDOLLAR_STATUS', 'MODULE_PAYMENT_PAYDOLLAR_ID', 'MODULE_PAYMENT_PAYDOLLAR_ORDER_STATUS_ID', 'MODULE_PAYMENT_PAYDOLLAR_SUCCESS_ORDER_STATUS_ID', 'MODULE_PAYMENT_PAYDOLLAR_FAIL_ORDER_STATUS_ID', 'MODULE_PAYMENT_PAYDOLLAR_CURRENCY','MODULE_PAYMENT_PAYDOLLAR_LANGUAGE', 'MODULE_PAYMENT_PAYDOLLAR_TRADITIONAL_CHINESE_CODE', 'MODULE_PAYMENT_PAYDOLLAR_ENGLISH_CODE', 'MODULE_PAYMENT_PAYDOLLAR_SIMPLIFIED_CHINESE_CODE', 'MODULE_PAYMENT_PAYDOLLAR_KOREAN_CODE', 'MODULE_PAYMENT_PAYDOLLAR_JAPANESE_CODE', 'MODULE_PAYMENT_PAYDOLLAR_HANDLER','MODULE_PAYMENT_PAYDOLLAR_SORT_ORDER','MODULE_PAYMENT_PAYDOLLAR_SHSKEY','MODULE_PAYMENT_PAYDOLLAR_PAYTYPE','MODULE_PAYMENT_PAYDOLLAR_TRANSTYPE','MODULE_PAYMENT_PAYDOLLAR_CHALLENGEPREF');
   }
 }
 ?>
