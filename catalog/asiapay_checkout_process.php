@@ -39,6 +39,143 @@
     }
   }
 
+  function getDateDiff($d){
+          $datenow = date('Ymd');
+        $dt1 = new \DateTime($datenow);
+        $dt2 = new \DateTime($d);
+        $interval = $dt1->diff($dt2)->format('%a');
+        return $interval;
+      }
+
+  function getAcctAgeInd($d, $isUpDate = FALSE){
+        switch ($d) {
+          case 0:
+            # code...
+            $ret = "02";
+            if($isUpDate)$ret = "01";
+            break;
+          case $d<30:
+            # code...
+            $ret = "03";
+            if($isUpDate)$ret = "02";
+            break;
+          case $d>30 && $d<60:
+            # code...
+            $ret = "04";
+            if($isUpDate)$ret = "03";
+            break;
+          case $d>60:
+            $ret = "05" ;
+            if($isUpDate)$ret = "04";
+          break;  
+          default:
+            # code...
+            break;
+        }
+        return $ret;
+
+      }
+  function getCreateDate($customer_id){
+      
+      $customer_query = tep_db_query("select customers_dob as dob from " . TABLE_CUSTOMERS . " where customers_id = '" . (int)$customer_id . "'");
+      $customers = tep_db_fetch_array($customer_query);
+      $customers_dob = $customers['dob'];
+      return date('Ymd' ,strtotime($customers_dob));
+
+  }
+
+  function getOrdersHistory($customer_id,$languages_id){
+
+      $orders_total = tep_count_customer_orders();
+
+      $timeQ24 = date('Y-m-d H:i:s', strtotime("-1 day"));
+      $timeQ6 = date('Y-m-d H:i:s', strtotime("-6 months"));
+      $timeQ1 = date('Y-m-d H:i:s', strtotime("-1 year"));
+      $countOrderAnyDay = $countOrder = $countOrderAnyYear = 0;
+
+      if ($orders_total > 0) {
+        $history_query_raw = "select o.orders_id, o.date_purchased, o.delivery_name, o.billing_name, ot.text as order_total, s.orders_status_name, o.orders_status from " . TABLE_ORDERS . " o, " . TABLE_ORDERS_TOTAL . " ot, " . TABLE_ORDERS_STATUS . " s where o.customers_id = '" . (int)$customer_id . "' and o.orders_id = ot.orders_id and ot.class = 'ot_total' and o.orders_status = s.orders_status_id and s.language_id = '" . (int)$languages_id . "' and s.public_flag = '1' order by orders_id DESC";
+        
+        $history_query = tep_db_query($history_query_raw);
+
+        while ($history = tep_db_fetch_array($history_query)) {
+
+            $dte6 = date('Ymd H:i:s' ,strtotime($history['date_purchased']));
+
+            $dte = date('Ymd H:i:s' ,strtotime($history['date_purchased']));
+
+            if($dte >= $timeQ24)$countOrderAnyDay++;
+            if($dte6 >= $timeQ6 && MODULE_PAYMENT_PAYDOLLAR_SUCCESS_ORDER_STATUS_ID == $history['orders_status'])$countOrder++;
+            if($dte >= $timeQ1)$countOrderAnyYear++;
+
+        }
+      }
+
+
+      return array(
+        isset($countOrder) ? (int)($countOrder) : '',
+        isset($countOrderAnyDay) ? (int)($countOrderAnyDay) : '',
+        isset($countOrderAnyYear) ? (int)($countOrderAnyYear) : '',
+      );
+
+}
+
+function isSameBillShipAddress($b,$s){
+
+
+    $cnt = 0;
+
+    if($b['state'] == $s['state'])$cnt++;
+    if($b['threeDSBillingLine1'] == $s['threeDSShippingLine1'])$cnt++;
+    if($b['city'] == $s['city'])$cnt++;
+    if($b['street_address'] == $s['street_address'])$cnt++;
+    if($b['suburb'] == $s['suburb'])$cnt++;
+    if($b['postcode'] == $s['postcode'])$cnt++;
+
+
+    if($cnt==6)return "T";
+    else return "F";
+
+  }
+
+  function getCountryCallAPI($countryCode){
+    $method = "GET";
+    $url = "https://restcountries.eu/rest/v2/alpha/$countryCode";
+    // $data = array('codes'=>$countryCode);
+    $data = false;
+
+    $curl = curl_init();
+
+    switch ($method)
+    {
+        case "POST":
+            curl_setopt($curl, CURLOPT_POST, 1);
+
+            if ($data)
+                curl_setopt($curl, CURLOPT_POSTFIELDS, $data);
+            break;
+        case "PUT":
+            curl_setopt($curl, CURLOPT_PUT, 1);
+            break;
+        default:
+            if ($data)
+                $url = sprintf("%s?%s", $url, http_build_query($data));
+    }
+
+    // Optional Authentication:
+    curl_setopt($curl, CURLOPT_HTTPAUTH, CURLAUTH_BASIC);
+    curl_setopt($curl, CURLOPT_USERPWD, "username:password");
+
+    curl_setopt($curl, CURLOPT_URL, $url);
+    curl_setopt($curl, CURLOPT_RETURNTRANSFER, 1);
+
+    $result = curl_exec($curl);
+
+    curl_close($curl);
+
+    return json_decode($result);
+
+}
   include(DIR_WS_LANGUAGES . $language . '/' . FILENAME_CHECKOUT_PROCESS);
 
 // load selected payment module
@@ -361,6 +498,8 @@ else if (DEFAULT_CURRENCY=="SGD") // SGD
 $currCode = 702;
 else if (DEFAULT_CURRENCY=="JPY") // JPY
 $currCode = 392;
+else if (DEFAULT_CURRENCY=="PHP") // JPY
+$currCode = 608;
 //***You can add code for currencies other than USD and HKD
 //***Here are some code for other currencies :
 //****************************************
@@ -391,9 +530,64 @@ $currCode = 392;
   // } else {
 	  // $sOrderRef = $insert_id;
   // }
+  $merchantId = $_POST['merchantId'];  
+  $orderRef = $insert_id;
+  $currCode = $_POST['currCode'];
+  $amount = $_POST['amount'];
+  $payType = $_POST['payType'];	
+  $secureHashSecret = $_POST['secureHashSecret'];
+  if ($secureHashSecret) {
+    require_once ('SHAPaydollarSecure.php');
+    $paydollarSecure = new SHAPaydollarSecure ();
+    $secureHash = $paydollarSecure->generatePaymentSecureHash ( $merchantId, $orderRef, $currCode, $amount, $payType, $secureHashSecret );
+    // $data ['secureHash'] = $secureHash;
+  } else {
+    // $data ['secureHash'] = '';
+  }
+
+  foreach ($_POST as $key => $value)
+    $$key = $value;
+$orders_total = tep_count_customer_orders();
 
 
+$dte_add = getCreateDate($customer_id);
+$dteAdd_diff = getDateDiff($dte_add);
+$dteAddAge = getAcctAgeInd($dteAdd_diff);
+list($threeDSAcctPurchaseCount,$threeDSAcctNumTransDay,$threeDSAcctNumTransYear) = getOrdersHistory($customer_id,$languages_id);
+$isSameAddress = isSameBillShipAddress($order->billing,$order->delivery);
+$shipDetl = $isSameAddress ? '01' : '03';
+$authMethod = (int)$customer_id > 0 ? "02" : "01";
+$country = getCountryCallAPI($order->customer['country']['iso_code_2']);
+if(count($country)>0)
+  $phoneCountryCode = $country->callingCodes[0];
+
+
+$billCountry = getCountryCallAPI($order->billing['country']['iso_code_2']);
+
+if(count($billCountry)>0)
+  $countryBNumCode = $country->numericCode;
+
+
+$shipCountry = getCountryCallAPI($order->delivery['country']['iso_code_2']);
+
+if(count($shipCountry)>0)
+  $countrySNumCode = $country->numericCode;
+
+
+
+// echo "$countryNumCode === $countryNumCode<br>";
+// // echo "$isSameAddress,$shipDetl <br>";
+// // // echo $orders_total;
+// echo "<pre>";
+// print_r($country);
+// print_r($order);exit;
 $form_action_url = $_POST["actionUrl"];
+
+$customerPhone = preg_replace('/\D/', '',$order->customer['telephone']);
+
+
+
+
 echo tep_draw_form('payFormCcard', $form_action_url, 'post');
 ?>
       <input type="hidden" name="merchantId" value="<?php echo $_POST['merchantId']; ?>">   
@@ -407,6 +601,48 @@ echo tep_draw_form('payFormCcard', $form_action_url, 'post');
       <input type="hidden" name="lang" value="<?php echo $_POST["lang"]; ?>">
       <!-- <input type="hidden" name="payMethod" value="CC"> -->
       <input type="hidden" name="name" value="<?php echo $order->info['cc_owner']?>">
+      <input type="hidden" name="payType" value="<?php echo $_POST['payType'];?>">
+      <input type="hidden" name="secureHashSecret" value="<?php echo $_POST['secureHashSecret'];?>">
+      <input type="hidden" name="secureHash" value="<?php echo $secureHash;?>">
+
+      <input type="hidden" name="threeDSTransType" value="<?php echo $threeDSTransType;?>">
+      <input type="hidden" name="threeDSCustomerEmail" value="<?php echo $order->customer['email_address'];?>">
+      <input type="hidden" name="threeDSMobilePhoneNumber" value="<?php echo $customerPhone;?>">
+      <input type="hidden" name="threeDSHomePhoneNumber" value="<?php echo $customerPhone;?>">
+      <input type="hidden" name="threeDSWorkPhoneNumber" value="<?php echo $customerPhone;?>">
+
+      <input type="hidden" name="threeDSMobilePhoneCountryCode" value="<?php echo $phoneCountryCode;?>">
+      <input type="hidden" name="threeDSHomePhoneCountryCode" value="<?php echo $phoneCountryCode;?>">
+      <input type="hidden" name="threeDSWorkPhoneCountryCode" value="<?php echo $phoneCountryCode;?>">
+
+      <input type="hidden" name="threeDSBillingCountryCode" value="<?php echo $countryBNumCode;?>">
+      <input type="hidden" name="threeDSBillingState" value="<?php echo $order->billing['state'];?>">
+      <input type="hidden" name="threeDSBillingCity" value="<?php echo $order->billing['city'];?>">
+      <input type="hidden" name="threeDSBillingLine1" value="<?php echo $order->billing['street_address'];?>">
+      <input type="hidden" name="threeDSBillingLine2" value="<?php echo $order->billing['suburb'];?>">
+      <input type="hidden" name="threeDSBillingPostalCode" value="<?php echo $order->billing['postcode'];?>">
+      
+      <input type="hidden" name="threeDSShippingCountryCode" value="<?php echo $countrySNumCode;?>">
+      <input type="hidden" name="threeDSShippingDetails" value="<?php echo $shipDetl;?>">
+      <input type="hidden" name="threeDSDeliveryEmail" value="<?php echo $order->customer['email_address'];?>">
+      <input type="hidden" name="threeDSShippingState" value="<?php echo $order->delivery['state'];?>">
+      <input type="hidden" name="threeDSShippingCity" value="<?php echo $order->delivery['city'];?>">
+      <input type="hidden" name="threeDSShippingLine1" value="<?php echo $order->delivery['street_address'];?>">
+      <input type="hidden" name="threeDSShippingLine2" value="<?php echo $order->delivery['suburb'];?>">
+      <input type="hidden" name="threeDSShippingPostalCode" value="<?php echo $order->delivery['postcode'];?>">
+      <input type="hidden" name="threeDSIsAddrMatch" value="<?php echo $isSameAddress;?>">
+
+      <input type="hidden" name="threeDSAcctCreateDate" value="<?php echo $dte_add;?>">
+      <input type="hidden" name="threeDSAcctAgeInd" value="<?php echo $dteAddAge;?>">
+      <input type="hidden" name="threeDSAcctPurchaseCount" value="<?php echo $threeDSAcctPurchaseCount;?>">
+      <input type="hidden" name="threeDSAcctNumTransDay" value="<?php echo $threeDSAcctNumTransDay;?>">
+      <input type="hidden" name="threeDSAcctNumTransYear" value="<?php echo $threeDSAcctNumTransYear;?>">
+
+      <input type="hidden" name="threeDSAcctAuthMethod" value="<?php echo $authMethod;?>">
+      
+
+
+      <input type="hidden" name="threeDSChallengePreference" value="<?php echo $threeDSChallengePreference;?>">
 	  </form>
 </body>
 </html>
